@@ -12,5 +12,5 @@ ______________
 - Start a TCP listener on a host and port that will be accessible by the web server.  Use the same port here as you specified in the script (1234 in this example):
 
 ```
-remember$ nc -v -n -l -p 1234
+$ nc -v -n -l -p 1234
 ```
