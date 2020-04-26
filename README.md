@@ -11,6 +11,6 @@ ______________
 - [x] **Get Ready to catch the reverse shell**
 - Start a TCP listener on a host and port that will be accessible by the web server.  Use the same port here as you specified in the script (1234 in this example):
 
-______________
-| $ nc -v -n -l -p 1234 |
-______________
+```
+remember$ nc -v -n -l -p 1234
+```
