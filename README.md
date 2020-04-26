@@ -5,7 +5,7 @@ ______________
 | Variable      | Default                | Personal?                       |
 | ------------- |:----------------------:| -------------------------------:|
 | $ip           | __170.0.0.1__          | Edit __line 7__                 |
-| $port         | __1234__               | Edit __line 4__                 |
+| $port         | __1234__               | Edit __line 8__                 |
 ______________
 
 - [x] **Get Ready to catch the reverse shell**
